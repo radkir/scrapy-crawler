@@ -11,5 +11,11 @@ import scrapy
 class LotiItem(scrapy.Item):
     # define the fields for your item here like:
     # name = scrapy.Field()
-    desc = scrapy.Field()
-    pass
+    uberschrift = scrapy.Field()
+    kaufpreis = scrapy.Field()
+    telefon = scrapy.Field()
+    plz = scrapy.Field()
+    stadt = scrapy.Field()
+    obid = scrapy.Field()
+    beschreibung = scrapy.Field()
+    erstellungsdatum = scrapy.Field()

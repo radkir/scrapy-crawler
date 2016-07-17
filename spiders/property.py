@@ -26,14 +26,14 @@ class PropertySpider(scrapy.Spider):
         item['kaufpreis'] = price.xpath('strong/span/text()').extract()
 
         description = response.xpath('//div[@itemprop="description"]')
-        item['beschreibung'] = description.xpath('/text()').extract()
+        item['beschreibung'] = description.xpath('text()').extract()
 
         telephone = response.xpath('//ul[@class="contacts"]')
     #    item['telefon'] = telephone.xpath('').extract()
 
         details = response.xpath('//div[@itemprop="offerDetails"]')
         item['plz'] = details.xpath('div/strong/span/span/span[@class="postal-code"]/text()').extract()
-        item['stadt'] = details.xpath('//span[class="locality"]/text()').extract()
+        item['stadt'] = details.xpath('div/strong/span/a/span[@class="locality"]/text()').extract()
      #   item['obid'] = details.xpath('').extract()
     #    item['erstellungsdatum'] = details.xpath('').extract()
         print(item)

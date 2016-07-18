@@ -19,3 +19,5 @@ class LotiItem(scrapy.Item):
     obid = scrapy.Field()
     beschreibung = scrapy.Field()
     erstellungsdatum = scrapy.Field()
+    url = scrapy.Field()
+    gewerblich = scrapy.Field()

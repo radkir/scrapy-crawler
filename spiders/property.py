@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import scrapy
+import httplib
+import re
 
 from LotI.items import LotiItem
 
@@ -19,6 +21,8 @@ class PropertySpider(scrapy.Spider):
     def parse_dir_contents(self, response):
         item = LotiItem()
 
+        item['url'] = response.url
+
         head = response.xpath('//div[@class="headline"]')
         item['uberschrift'] = head.xpath('//h1[@itemprop="name"]/text()').extract()
 
@@ -29,7 +33,14 @@ class PropertySpider(scrapy.Spider):
         item['beschreibung'] = description.xpath('text()').extract()
 
         telephone = response.xpath('//ul[@class="contacts"]')
-        item['telefon'] = telephone.xpath('li/span/span[@class="cust-type"]/text()').extract()
+        request = telephone.xpath('li/span/a[@id="dspphone1"]/@onclick').re(r'/ajax.*[0-9]')
+        conn = httplib.HTTPSConnection("www.quoka.de")
+        if request != []:
+            conn.request("GET", request[0])
+            r1 = conn.getresponse()
+            data1 = r1.read()
+            number = re.sub('[^0-9]*','', data1)
+            item['telefon'] = number
 
         details = response.xpath('//div[@itemprop="offerDetails"]')
         item['plz'] = details.xpath('div/strong/span/span/span[@class="postal-code"]/text()').extract()

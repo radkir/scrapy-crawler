@@ -2,7 +2,9 @@
 import scrapy
 import httplib
 import re
+import datetime
 
+from datetime import timedelta
 from LotI.items import LotiItem
 
 class PropertySpider(scrapy.Spider):
@@ -13,7 +15,7 @@ class PropertySpider(scrapy.Spider):
     )
 
     def parse(self, response):
-        for href in response.xpath('//div[@id="ResultListData"]').xpath('//a[@class="qaheadline item fn"]/@href'):
+        for href in response.xpath('//a[@class="qaheadline item fn"]/@href'):
             url = response.urljoin(href.extract())
             yield scrapy.Request(url, callback=self.parse_dir_contents)
 
@@ -23,14 +25,22 @@ class PropertySpider(scrapy.Spider):
 
         item['url'] = response.url
 
-        head = response.xpath('//div[@class="headline"]')
-        item['uberschrift'] = head.xpath('//h1[@itemprop="name"]/text()').extract()
+        head = response.xpath('//h1[@itemprop="name"]/text()').extract()
+        title = re.sub(u'[^a-z\.,\ \-A-Z]*', u'', head[0])
+        item['uberschrift'] = title
 
-        price = response.xpath('//div[@class="price has-type"]')
-        item['kaufpreis'] = price.xpath('strong/span/text()').re(r'(.*[0-9]+)')
+        price = response.xpath('//div[@class="price has-type"]/strong/span/text()').re(r'(.*[0-9]+)')
+        if price != []:
+            amount = re.sub(u'(\.)*', u'', price[0])
+            amount = re.sub(u',', u'.', amount)
+            item['kaufpreis'] = float(amount)
+        else:
+            item['kaufpreis'] = 0
 
-        description = response.xpath('//div[@itemprop="description"]')
-        item['beschreibung'] = description.xpath('text()').extract()
+        descriptionbox = response.xpath('//div[@itemprop="description"]')
+        descriptionraw = '.'.join(descriptionbox.xpath('text()').extract())
+        description = re.sub(u'[^a-z A-Z\.,]*', u'', descriptionraw)
+        item['beschreibung'] = description
 
         telephone = response.xpath('//ul[@class="contacts"]')
         request = telephone.xpath('li/span/a[@id="dspphone1"]/@onclick').re(r'/ajax.*[0-9]')
@@ -40,15 +50,32 @@ class PropertySpider(scrapy.Spider):
             r1 = conn.getresponse()
             data1 = r1.read()
             number = re.sub('[^0-9]*','', data1)
-            item['telefon'] = number
+            item['telefon'] = int(number)
+        else:
+            item['telefon'] = 0
 
-        details = response.xpath('//div[@itemprop="offerDetails"]')
-        item['plz'] = details.xpath('div/strong/span/span/span[@class="postal-code"]/text()').extract()
-        item['stadt'] = details.xpath('div/strong/span/a/span[@class="locality"]/text()').extract()
-        date = details.xpath('div[@class="date-and-clicks"]/text()').re(r'(.*[0-9]+)')
+        detailsbox = response.xpath('//div[@itemprop="offerDetails"]')
+        postcode = detailsbox.xpath('div/strong/span/span/span[@class="postal-code"]/text()').extract()
+        item['plz'] = postcode[0]
+
+        city = detailsbox.xpath('div/strong/span/a/span[@class="locality"]/text()').extract()
+        item['stadt'] = city[0]
+
+        date = detailsbox.xpath('div[@class="date-and-clicks"]/text()').re(r'(.*[0-9]+)')
         if date == []:
-            date = details.xpath('div[@class="date-and-clicks"]/text()').re(r'(.*e+.[a-z]*)')
-        item['erstellungsdatum'] = date
-        item['obid'] = details.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
+            date = detailsbox.xpath('div[@class="date-and-clicks"]/text()').re_first(r'([A-Z]+[a-z]*)')
+            now = datetime.datetime.now()
+            if date == u'Gestern':
+                dday = timedelta(days=1)
+                ddate = now - dday
+                fdate = int(ddate.strftime("%d%m%Y"))
+            else:
+                fdate = int(now.strftime("%d%m%Y"))
+        else:
+            fdate = int(re.sub(u'[.]*', u'', date[0]))
+        item['erstellungsdatum'] = fdate
+
+        prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
+        item['obid'] = int(prid[0])
         print(item)
       #  yield item

@@ -6,6 +6,51 @@ import datetime
 
 from datetime import timedelta
 from LotI.items import LotiItem
+from flask import Flask
+from flask_sqlalchemy import SQLAlchemy
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
+db = SQLAlchemy(app)
+
+
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    Boersen_ID = db.Column(db.Integer)
+    OBID = db.Column(db.Integer)
+    erzeugt_am = db.Column(db.Integer)
+    Anbieter_ID = db.Column(db.Integer)
+    Stadt = db.Column(db.String(150))
+    PLZ = db.Column(db.String(10))
+    Uberschrift = db.Column(db.String(500))
+    Beschreibung = db.Column(db.String(15000))
+    Kaufpreis = db.Column(db.Integer)
+    Monat = db.Column(db.Integer)
+    url = db.Column(db.String(1000))
+    Telefon = db.Column(db.Integer)
+    Erstellungsdatum = db.Column(db.Integer)
+    Gewerblich = db.Column(db.Integer)
+
+    def __init__(self, Boersen_ID, OBID, erzeugt_am, Anbieter_ID, Stadt,
+                 PLZ, Uberschrift, Beschreibung, Kaufpreis, Monat, url,
+                 Telefon, Erstellungsdatum, Gewerblich
+                 ):
+        self.Boersen_ID = Boersen_ID
+        self.OBID = OBID
+        self.erzeugt_am = erzeugt_am
+        self.Anbieter_ID = Anbieter_ID
+        self.Stadt = Stadt
+        self.PLZ = PLZ
+        self.Uberschrift = Uberschrift
+        self.Beschreibung = Beschreibung
+        self.Kaufpreis = Kaufpreis
+        self.Monat = Monat
+        self.url = url
+        self.Telefon = Telefon
+        self.Erstellungsdatum = Erstellungsdatum
+        self.Gewerblich = Gewerblich
+
+db.create_all()
 
 class PropertySpider(scrapy.Spider):
     name = "property"
@@ -15,9 +60,22 @@ class PropertySpider(scrapy.Spider):
     )
 
     def parse(self, response):
-        for href in response.xpath('//a[@class="qaheadline item fn"]/@href'):
-            url = response.urljoin(href.extract())
-            yield scrapy.Request(url, callback=self.parse_dir_contents)
+        for href in response.xpath('//div[@id="ResultListData"]'):
+            dodo = response.xpath('//a[@class="qaheadline"]').extract()
+            print(dodo)
+         #('//a[@class="qaheadline item fn"]/@href'):'//a[@class="qaheadline"]'
+            if href.xpath('//a[@class="qaheadline"]/h3/text()') == []:
+                for ref in response.xpath('//a[@class="qaheadline item fn"]/@href'):
+                   url = response.urljoin(ref.extract())
+                   yield scrapy.Request(url, callback=self.parse_dir_contents)
+            else:
+                for ref in response.xpath('//a[@class="qaheadline"]'):
+                  item = LotiItem()
+                #  item['uberschrift'] =
+                  print("item")
+
+
+
 
 
     def parse_dir_contents(self, response):
@@ -78,4 +136,5 @@ class PropertySpider(scrapy.Spider):
         prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
         item['obid'] = int(prid[0])
         print(item)
+        db.session.add(item)
       #  yield item

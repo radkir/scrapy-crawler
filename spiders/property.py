@@ -10,11 +10,11 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/test.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test2.db'
 db = SQLAlchemy(app)
 
 
-class User(db.Model):
+class Line(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     Boersen_ID = db.Column(db.Integer)
     OBID = db.Column(db.Integer)
@@ -50,6 +50,21 @@ class User(db.Model):
         self.Erstellungsdatum = Erstellungsdatum
         self.Gewerblich = Gewerblich
 
+    def spr(self):
+        return {
+            'id': self.id,
+            'Boersen_ID': self.Boersen_ID,
+            'OBID': self.OBID,
+            'erzeugt_am': self.erzeugt_am,
+            'Anbieter_ID' : self.Anbieter_ID,
+            'Stadt' : self.Stadt,
+            'PLZ' : self.PLZ,
+            'Uberschrift' : self.Uberschrift,
+            'Beschreibung' : self.Beschreibung,
+            'Kaufpreis' : self.Kaufpreis,
+            'Monat' : self.Monat
+        }
+
 db.create_all()
 
 class PropertySpider(scrapy.Spider):
@@ -61,8 +76,6 @@ class PropertySpider(scrapy.Spider):
 
     def parse(self, response):
         for href in response.xpath('//div[@id="ResultListData"]'):
-            dodo = response.xpath('//a[@class="qaheadline"]').extract()
-            print(dodo)
          #('//a[@class="qaheadline item fn"]/@href'):'//a[@class="qaheadline"]'
             if href.xpath('//a[@class="qaheadline"]/h3/text()') == []:
                 for ref in response.xpath('//a[@class="qaheadline item fn"]/@href'):
@@ -70,9 +83,13 @@ class PropertySpider(scrapy.Spider):
                    yield scrapy.Request(url, callback=self.parse_dir_contents)
             else:
                 for ref in response.xpath('//a[@class="qaheadline"]'):
-                  item = LotiItem()
-                #  item['uberschrift'] =
-                  print("item")
+                   pass
+
+        next_page = response.xpath('//li[@class="arr-rgt active"]/a[@class="sem"]/@href')
+        print(next_page)
+        if next_page:
+            url = response.urljoin(next_page[0].extract())
+            yield scrapy.Request(url, self.parse)
 
 
 
@@ -135,6 +152,12 @@ class PropertySpider(scrapy.Spider):
 
         prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
         item['obid'] = int(prid[0])
-        print(item)
-        db.session.add(item)
+    #    print(item)
+        now = datetime.datetime.now()
+        line = Line(31,item['obid'],1,"",item['stadt'],item['plz'],item['uberschrift'],
+                    item['beschreibung'],item['kaufpreis'],now.month,item['url'],item['telefon'],
+                    item['erstellungsdatum'],1)
+       # print(line.lprint())
+        db.session.add(line)
+        db.session.commit()
       #  yield item

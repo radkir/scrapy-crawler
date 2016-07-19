@@ -8,9 +8,10 @@ from datetime import timedelta
 from LotI.items import LotiItem
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from scrapy.http import FormRequest
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test2.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test21.db'
 db = SQLAlchemy(app)
 
 
@@ -66,7 +67,7 @@ class Line(db.Model):
         }
 
 db.create_all()
-
+x=0
 class PropertySpider(scrapy.Spider):
     name = "property"
     allowed_domains = ["quoka.de"]
@@ -75,6 +76,20 @@ class PropertySpider(scrapy.Spider):
     )
 
     def parse(self, response):
+        yield FormRequest.from_response(response, formdata = {'classtype':'wa'}, callback=self.parse_city)
+
+    def parse_city(self, response):
+        ref = response.xpath('//div[@class="cnt"]/ul/li/ul')
+
+        for href in ref.xpath('li/a/@href'):
+            str = href.extract()
+            if "immobilien/bueros-gewerbeflaechen" in str:
+                url = response.urljoin(str)
+                yield scrapy.Request(url, callback=self.parse_filtered)
+
+
+
+    def parse_filtered(self, response):
         for href in response.xpath('//div[@id="ResultListData"]'):
          #('//a[@class="qaheadline item fn"]/@href'):'//a[@class="qaheadline"]'
             if href.xpath('//a[@class="qaheadline"]/h3/text()') == []:
@@ -84,12 +99,14 @@ class PropertySpider(scrapy.Spider):
             else:
                 for ref in response.xpath('//a[@class="qaheadline"]'):
                    pass
-
+        global x
+      #  if x < 3:
         next_page = response.xpath('//li[@class="arr-rgt active"]/a[@class="sem"]/@href')
         print(next_page)
+      #      x=x+1
         if next_page:
             url = response.urljoin(next_page[0].extract())
-            yield scrapy.Request(url, self.parse)
+            yield scrapy.Request(url, self.parse_filtered)
 
 
 
@@ -137,27 +154,33 @@ class PropertySpider(scrapy.Spider):
         item['stadt'] = city[0]
 
         date = detailsbox.xpath('div[@class="date-and-clicks"]/text()').re(r'(.*[0-9]+)')
+        now = datetime.datetime.now()
+        dmy = int(now.strftime("%d%m%Y"))
         if date == []:
             date = detailsbox.xpath('div[@class="date-and-clicks"]/text()').re_first(r'([A-Z]+[a-z]*)')
-            now = datetime.datetime.now()
+
             if date == u'Gestern':
                 dday = timedelta(days=1)
                 ddate = now - dday
                 fdate = int(ddate.strftime("%d%m%Y"))
             else:
-                fdate = int(now.strftime("%d%m%Y"))
+                fdate = dmy
         else:
-            fdate = int(re.sub(u'[.]*', u'', date[0]))
+            if "vor" in date[0]:
+                dday = timedelta(weeks=24)
+                ddate = now - dday
+                fdate = int(ddate.strftime("%m%Y"))
+            else:
+                print(date[0])
+                fdate = int(re.sub(u'[.]*', u'', date[0]))
         item['erstellungsdatum'] = fdate
 
         prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
         item['obid'] = int(prid[0])
-    #    print(item)
-        now = datetime.datetime.now()
-        line = Line(31,item['obid'],1,"",item['stadt'],item['plz'],item['uberschrift'],
+
+        line = Line(31,item['obid'],dmy,"",item['stadt'],item['plz'],item['uberschrift'],
                     item['beschreibung'],item['kaufpreis'],now.month,item['url'],item['telefon'],
                     item['erstellungsdatum'],1)
-       # print(line.lprint())
+
         db.session.add(line)
         db.session.commit()
-      #  yield item

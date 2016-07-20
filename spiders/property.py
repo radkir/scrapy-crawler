@@ -11,7 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 from scrapy.http import FormRequest
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test21.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test33.db'
 db = SQLAlchemy(app)
 
 
@@ -72,20 +72,23 @@ class PropertySpider(scrapy.Spider):
     name = "property"
     allowed_domains = ["quoka.de"]
     start_urls = (
-        'http://www.quoka.de/immobilien/bueros-gewerbeflaechen/',
+        'http://www.quoka.de/immobilien/bueros-gewerbeflaechen?classtype=wa&comm=1',
     )
 
+   # def parse(self, response):
+    #    url = 'http://www.quoka.de/immobilien/bueros-gewerbeflaechen?classtype=wa&comm=1'
+     #   yield scrapy.Request(url, callback=self.parse_city)
+   # def parse(self, response):
+   #     yield FormRequest(response.url, formdata={'classtype': 'wa', 'comm': '1'}, callback=self.parse_city)
+
     def parse(self, response):
-        yield FormRequest.from_response(response, formdata = {'classtype':'wa'}, callback=self.parse_city)
+        ref = response.xpath('//div[@class="cnt"]/ul/li')
 
-    def parse_city(self, response):
-        ref = response.xpath('//div[@class="cnt"]/ul/li/ul')
-
-        for href in ref.xpath('li/a/@href'):
+        for href in ref.xpath('.//li/a/@href'):
             str = href.extract()
             if "immobilien/bueros-gewerbeflaechen" in str:
                 url = response.urljoin(str)
-                yield scrapy.Request(url, callback=self.parse_filtered)
+                yield FormRequest(url, formdata={'classtype': 'of'}, callback=self.parse_filtered)
 
 
 
@@ -100,13 +103,12 @@ class PropertySpider(scrapy.Spider):
                 for ref in response.xpath('//a[@class="qaheadline"]'):
                    pass
         global x
-      #  if x < 3:
-        next_page = response.xpath('//li[@class="arr-rgt active"]/a[@class="sem"]/@href')
-        print(next_page)
-      #      x=x+1
-        if next_page:
-            url = response.urljoin(next_page[0].extract())
-            yield scrapy.Request(url, self.parse_filtered)
+        if x < 2:
+            next_page = response.xpath('//li[@class="arr-rgt active"]/a[@class="sem"]/@href')
+            x=x+1
+            if next_page:
+                url = response.urljoin(next_page[0].extract())
+                yield scrapy.Request(url, self.parse_filtered)
 
 
 
@@ -153,6 +155,9 @@ class PropertySpider(scrapy.Spider):
         city = detailsbox.xpath('div/strong/span/a/span[@class="locality"]/text()').extract()
         item['stadt'] = city[0]
 
+
+
+
         date = detailsbox.xpath('div[@class="date-and-clicks"]/text()').re(r'(.*[0-9]+)')
         now = datetime.datetime.now()
         dmy = int(now.strftime("%d%m%Y"))
@@ -171,16 +176,15 @@ class PropertySpider(scrapy.Spider):
                 ddate = now - dday
                 fdate = int(ddate.strftime("%m%Y"))
             else:
-                print(date[0])
                 fdate = int(re.sub(u'[.]*', u'', date[0]))
         item['erstellungsdatum'] = fdate
 
         prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
         item['obid'] = int(prid[0])
 
-        line = Line(31,item['obid'],dmy,"",item['stadt'],item['plz'],item['uberschrift'],
-                    item['beschreibung'],item['kaufpreis'],now.month,item['url'],item['telefon'],
-                    item['erstellungsdatum'],1)
+        line = Line(31, item['obid'], dmy, "", item['stadt'], item['plz'], item['uberschrift'],
+                    item['beschreibung'], item['kaufpreis'], now.month, item['url'], item['telefon'],
+                    item['erstellungsdatum'], 0)
 
         db.session.add(line)
         db.session.commit()

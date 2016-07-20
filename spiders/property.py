@@ -11,7 +11,7 @@ from flask_sqlalchemy import SQLAlchemy
 from scrapy.http import FormRequest
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test33.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test/test36.db'
 db = SQLAlchemy(app)
 
 
@@ -75,12 +75,6 @@ class PropertySpider(scrapy.Spider):
         'http://www.quoka.de/immobilien/bueros-gewerbeflaechen?classtype=wa&comm=1',
     )
 
-   # def parse(self, response):
-    #    url = 'http://www.quoka.de/immobilien/bueros-gewerbeflaechen?classtype=wa&comm=1'
-     #   yield scrapy.Request(url, callback=self.parse_city)
-   # def parse(self, response):
-   #     yield FormRequest(response.url, formdata={'classtype': 'wa', 'comm': '1'}, callback=self.parse_city)
-
     def parse(self, response):
         ref = response.xpath('//div[@class="cnt"]/ul/li')
 
@@ -88,17 +82,19 @@ class PropertySpider(scrapy.Spider):
             str = href.extract()
             if "immobilien/bueros-gewerbeflaechen" in str:
                 url = response.urljoin(str)
-                yield FormRequest(url, formdata={'classtype': 'of'}, callback=self.parse_filtered)
+                yield FormRequest(url, formdata={'classtype': 'of', 'comm': '1'}, callback=self.parse_filtered, meta={'offer': 1})
+                yield FormRequest(url, formdata={'classtype': 'of', 'comm': '0'}, callback=self.parse_filtered, meta={'offer': 0})
 
 
 
     def parse_filtered(self, response):
+        offer = response.meta['offer']
+
         for href in response.xpath('//div[@id="ResultListData"]'):
-         #('//a[@class="qaheadline item fn"]/@href'):'//a[@class="qaheadline"]'
             if href.xpath('//a[@class="qaheadline"]/h3/text()') == []:
                 for ref in response.xpath('//a[@class="qaheadline item fn"]/@href'):
                    url = response.urljoin(ref.extract())
-                   yield scrapy.Request(url, callback=self.parse_dir_contents)
+                   yield scrapy.Request(url, callback=self.parse_dir_contents, meta={'offer':offer})
             else:
                 for ref in response.xpath('//a[@class="qaheadline"]'):
                    pass
@@ -108,13 +104,14 @@ class PropertySpider(scrapy.Spider):
             x=x+1
             if next_page:
                 url = response.urljoin(next_page[0].extract())
-                yield scrapy.Request(url, self.parse_filtered)
+                yield scrapy.Request(url, self.parse_filtered, meta={'offer':offer})
 
 
 
 
 
     def parse_dir_contents(self, response):
+        offer = response.meta['offer']
         item = LotiItem()
 
         item['url'] = response.url
@@ -181,10 +178,9 @@ class PropertySpider(scrapy.Spider):
 
         prid = detailsbox.xpath('div[@class="date-and-clicks"]/strong/text()').re(r'(.*[0-9]+)')
         item['obid'] = int(prid[0])
-
         line = Line(31, item['obid'], dmy, "", item['stadt'], item['plz'], item['uberschrift'],
                     item['beschreibung'], item['kaufpreis'], now.month, item['url'], item['telefon'],
-                    item['erstellungsdatum'], 0)
+                    item['erstellungsdatum'], offer)
 
         db.session.add(line)
         db.session.commit()
